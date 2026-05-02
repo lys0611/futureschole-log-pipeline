@@ -1,0 +1,125 @@
+# 공용 설정 파일: config.yml
+pubsub:
+  endpoint: "$PUBSUB_ENDPOINT"
+  domain_id: "$DOMAIN_ID"
+  project_id: "$PROJECT_ID"
+  topic_name: "$TOPIC_NAME"
+  topic_name_mk: "$TOPIC_NAME_MK"
+  topic_description: ""
+  topic_retention_duration: "600s"
+  sub_name: "$SUB_NAME"
+  credential_id: "$CREDENTIAL_ID"
+  credential_secret: "$CREDENTIAL_SECRET"
+
+object_storage_subscription:
+  name: "$OBJECT_STORAGE_SUBSCRIPTION_NAME"
+  bucket: "$OBJECT_STORAGE_BUCKET"
+  export_interval_min: 10
+  file_prefix: ""
+  file_suffix: ".log"
+  channel_count: 4
+  max_channel_count: 10
+  is_export_enabled: true
+
+logging:
+  filename: "traffic_generator.log"
+  level: "INFO"
+
+threads:
+  num_users: 10
+  max_threads: 5
+  actions_per_user: 30
+
+api:
+  base_url: "$API_BASE_URL"
+  endpoints:
+    add_user: "add_user"
+    delete_user: "delete_user"
+    login: "login"
+    logout: "logout"
+    products: "products"
+    product_detail: "product"
+    search: "search"
+    checkout_history: "checkout_history"
+    categories: "categories"
+    category: "category"
+    cart_view: "cart/view"
+    cart_add: "cart/add"
+    cart_remove: "cart/remove"
+    checkout: "checkout"
+    add_review: "add_review"
+    error_page: "error"
+  time_sleep_range:
+    min: 0.1
+    max: 1.0
+
+age_threshold:
+  young: 25
+  middle: 50
+
+# === 추가: 행동 패턴 기반 전이 가중치 ===
+pattern_bias:
+  logged_in:
+    with_goal:        # /cart/add 또는 /checkout 경험이 있는 세션
+      Logged_Out: 2.0
+      Done: 0.5
+    no_goal:          # 목표 행동이 전혀 없는 세션
+      Done: 2.0
+      Logged_Out: 0.5
+
+bias_thresholds:
+  cart_has_items_min: 1
+  heavy_cart_min: 3
+  deep_page_min: 6
+  long_session_sec: 60
+  idle_slow_sec: 5
+
+sub_bias:
+  logged_in:
+    Login_Sub_ViewCart:
+      if_cart_item_count_lt: 1
+      multiply:
+        Login_Sub_CartAdd: 1.8
+        Login_Sub_Done: 0.8
+    Login_Sub_CartAdd:
+      if_cart_item_count_gte: 1
+      multiply:
+        Login_Sub_Checkout: 1.4
+        Login_Sub_ViewCart: 1.2
+    Login_Sub_ViewProduct:
+      if_idle_slow_sec_gte: 5
+      multiply:
+        Login_Sub_ViewCart: 1.3
+        Login_Sub_Done: 0.9
+  anon:
+    # 검색을 많이 한 뒤면 Done 쪽으로 기울이기
+    Anon_Sub_Search:
+      if_search_count_gte: 5
+      multiply:
+        Anon_Sub_Done: 1.3
+    # 검색 누적 후 상세만 반복 보는 패턴도 Done 강화
+    Anon_Sub_ViewProduct:
+      if_search_count_gte: 3
+      multiply:
+        Anon_Sub_Done: 1.25
+    # 탐색이 너무 깊어지면(피곤함) Done 약간↑
+    Anon_Sub_Main:
+      if_page_depth_gte: 8
+      multiply:
+        Anon_Sub_Done: 1.2
+    Anon_Sub_Products:
+      if_page_depth_gte: 8
+      multiply:
+        Anon_Sub_Done: 1.2
+    Anon_Sub_Categories:
+      if_page_depth_gte: 8
+      multiply:
+        Anon_Sub_Done: 1.2
+    Anon_Sub_CategoryList:
+      if_page_depth_gte: 8
+      multiply:
+        Anon_Sub_Done: 1.2
+
+boost:
+  checkout_mul: 1.2   # Login_Sub_Checkout 전이 가중치 배율
+  review_mul: 1.5     # Login_Sub_AddReview 전이 가중치 배율
