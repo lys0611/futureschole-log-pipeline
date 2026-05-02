@@ -168,9 +168,9 @@ sudo chown -R ubuntu:ubuntu "${KAFKA_INSTALL_DIR}" || { echo "kakaocloud: Kafka 
 echo "kakaocloud: 12. 커스텀 플러그인 다운로드 시작"
 # S3 Sink Connector 플러그인 디렉토리에 커스텀 JAR 파일 다운로드
 sudo wget -O /confluent-hub/plugins/confluentinc-kafka-connect-s3/lib/custom-partitioner-1.0-SNAPSHOT.jar \
-    "https://raw.githubusercontent.com/kakaocloud-edu/tutorial/main/DataAnalyzeCourse/src/day1/Lab03/kafka_connector/custom-partitioner-1.0-SNAPSHOT.jar" || { echo "kakaocloud: custom-partitioner 다운로드 실패"; exit 1; }
+    "https://github.com/lys0611/futureschole-log-pipeline/raw/refs/heads/main/day1/Lab03/kafka_connector/custom-partitioner-1.0-SNAPSHOT.jar" || { echo "kakaocloud: custom-partitioner 다운로드 실패"; exit 1; }
 sudo wget -O /confluent-hub/plugins/confluentinc-kafka-connect-s3/lib/custom-filename-1.0-SNAPSHOT.jar \
-    "https://raw.githubusercontent.com/kakaocloud-edu/tutorial/main/DataAnalyzeCourse/src/day1/Lab03/kafka_connector/custom-filename-1.0-SNAPSHOT.jar" || { echo "kakaocloud: custom-filename 다운로드 실패"; exit 1; }
+    "https://github.com/lys0611/futureschole-log-pipeline/raw/refs/heads/main/day1/Lab03/kafka_connector/custom-filename-1.0-SNAPSHOT.jar" || { echo "kakaocloud: custom-filename 다운로드 실패"; exit 1; }
 
 ################################################################################
 # 13. MySQL 데이터 적재용 S3 Sink Connector JSON 생성 (8084 포트용)
@@ -285,7 +285,7 @@ if [ $? -ne 0 ]; then echo "kakaocloud: kafka-connect-mysql-s3-sink.service 등�
 # 16. S3 커넥터 플러그인 경로에 Avro 컨버터 설치 및 추가 의존성 다운로드
 ################################################################################
 echo "kakaocloud: 16. Avro 컨버터 설치 및 설정 시작"
-sudo wget https://github.com/kakaocloud-edu/tutorial/raw/refs/heads/main/DataAnalyzeCourse/src/day2/Lab01/confluentinc-kafka-connect-avro-converter-7.5.3.zip || { echo "kakaocloud: confluentinc-kafka-connect-avro-converter 다운로드 실패"; exit 1; }
+sudo wget https://github.com/lys0611/futureschole-log-pipeline/raw/refs/heads/main/day2/Lab01/confluentinc-kafka-connect-avro-converter-7.5.3.zip || { echo "kakaocloud: confluentinc-kafka-connect-avro-converter 다운로드 실패"; exit 1; }
 unzip confluentinc-kafka-connect-avro-converter-7.5.3.zip || { echo "kakaocloud: confluentinc-kafka-connect-avro-converter 압축 해제 실패"; exit 1; }
 sudo rm confluentinc-kafka-connect-avro-converter-7.5.3.zip || { echo "kakaocloud: confluentinc-kafka-connect-avro-converter 압축파일 삭제 실패"; exit 1; }
 sudo mv confluentinc-kafka-connect-avro-converter-7.5.3/lib/*.jar /confluent-hub/plugins/confluentinc-kafka-connect-s3/lib || { echo "kakaocloud: confluentinc-kafka-connect-avro-converter 파일 이동 실패"; exit 1; }
