@@ -20,6 +20,17 @@ config_path = os.path.join(current_dir, "config.yml")
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
+def _resolve_env_placeholders(value):
+    if isinstance(value, dict):
+        return {k: _resolve_env_placeholders(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_resolve_env_placeholders(v) for v in value]
+    if isinstance(value, str) and value.startswith("$") and len(value) > 1:
+        return os.environ.get(value[1:], value)
+    return value
+
+config = _resolve_env_placeholders(config)
+
 # Pub/Sub 설정
 PUBSUB_ENDPOINT = config['pubsub']['endpoint']
 DOMAIN_ID = config['pubsub']['domain_id']

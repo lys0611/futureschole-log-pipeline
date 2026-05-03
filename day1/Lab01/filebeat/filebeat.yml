@@ -1,0 +1,16 @@
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/nginx/flask_app_access.log
+    multiline.pattern: '^\{'
+    multiline.negate: true
+    multiline.match: after
+
+output.logstash:
+  hosts: ["logstash:5044"]
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_docker_metadata: ~
