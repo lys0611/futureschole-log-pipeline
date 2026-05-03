@@ -60,6 +60,10 @@ services:
     image: docker.elastic.co/logstash/logstash:7.17.23
     environment:
       LOGSTASH_KAFKA_ENDPOINT: ${LOGSTASH_KAFKA_ENDPOINT:?Set LOGSTASH_KAFKA_ENDPOINT in .env}
+      KAFKA_SECURITY_PROTOCOL: ${KAFKA_SECURITY_PROTOCOL:?Set KAFKA_SECURITY_PROTOCOL in .env}
+      KAFKA_SASL_MECHANISM: ${KAFKA_SASL_MECHANISM:?Set KAFKA_SASL_MECHANISM in .env}
+      KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:?Set KAFKA_SASL_USERNAME in .env}
+      KAFKA_SASL_PASSWORD: ${KAFKA_SASL_PASSWORD:?Set KAFKA_SASL_PASSWORD in .env}
       LS_JAVA_OPTS: -Xms256m -Xmx256m
     volumes:
       - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
