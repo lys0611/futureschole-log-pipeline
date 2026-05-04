@@ -20,12 +20,13 @@
 
 ## 2. 환경 변수 설정
 
-`Cloud Shell` 또는 `Google Cloud CLI가 설정된 터미널`에서 실행합니다.
+- `Cloud Shell`에서 실행합니다.
 
 ```sh
 gcloud auth login
 
 export PROJECT_ID="replace-with-gcp-project-id"
+export BUCKET_NAME="gcp-bucket-${PROJECT_ID}"
 
 # 새 프로젝트를 만들 경우에만 실행합니다.
 # 이미 프로젝트가 있으면 생략합니다.
@@ -164,17 +165,29 @@ echo "$VM_EXTERNAL_IP"
 
 ---
 
-## 8. VM에서 Docker Engine과 Compose plugin 설치
+## 8. 프로젝트 clone
 
-아래 명령은 `VM`에서 실행합니다.
+아래 명령은 VM 브라우저 SSH 세션 안에서 실행합니다. 프로젝트 clone과 이후 확인에 필요한 최소 도구를 설치한 뒤 public repository를 clone하고 프로젝트 루트로 이동합니다.
 
 ```sh
-curl -fsSL \
-  https://github.com/lys0611/futureschole-log-pipeline/raw/refs/heads/main/scripts/setup-vm-docker.sh \
-  -o install_docker_ubuntu.sh
+sudo apt-get update
+sudo apt-get install -y git curl jq
 
-chmod +x install_docker_ubuntu.sh
-./install_docker_ubuntu.sh
+cd ~
+git clone https://github.com/lys0611/futureschole-log-pipeline.git
+cd futureschole-log-pipeline
+cp .env.example .env
+```
+
+---
+
+## 9. VM에서 Docker Engine과 Compose plugin 설치
+
+아래 명령은 VM SSH 세션의 프로젝트 루트 디렉터리에서 실행합니다.
+
+```sh
+chmod +x scripts/setup-vm-docker.sh
+./scripts/setup-vm-docker.sh
 
 newgrp docker
 
@@ -184,10 +197,10 @@ docker compose version
 
 ---
 
-## 9. Managed Kafka cluster 생성
+## 10. Managed Kafka cluster 생성
 
-* `Cloud Shell` 또는 `Google Cloud CLI가 설정된 터미널`에서 실행합니다.
-* Kafka cluster는 VM과 같은 subnet에 연결합니다. Cluster 생성에는 시간이 걸릴 수 있습니다.
+- `Cloud Shell`에서 실행합니다.
+- Kafka cluster는 VM과 같은 subnet에 연결합니다. Cluster 생성에는 시간이 걸릴 수 있습니다.
 
 ```sh
 gcloud managed-kafka clusters create kafka-clu \
@@ -209,53 +222,50 @@ gcloud managed-kafka clusters create kafka-clu \
 
 ---
 
-## 10. Kafka client service account와 SASL 값 준비
+## 11. Kafka client service account와 SASL 값 준비
 
-Kafka client가 Managed Kafka cluster에 접속하려면 client principal에 `roles/managedkafka.client` 권한이 필요합니다. 이 프로젝트는 테스트 편의를 위해 `SASL_SSL` + `PLAIN` 방식으로 접속합니다.
+- `Cloud Shell`에서 실행합니다.
+- Kafka client가 Managed Kafka cluster에 접속하려면 client principal에 `roles/managedkafka.client` 권한이 필요합니다. 이 프로젝트는 테스트 편의를 위해 `SASL_SSL` + `PLAIN` 방식으로 접속합니다.
 
-```sh
-gcloud iam service-accounts create kafka-client \
-  --display-name="Kafka client for event log pipeline"
+    ```sh
+    gcloud iam service-accounts create kafka-client \
+      --display-name="Kafka client for event log pipeline"
+    
+    export KAFKA_CLIENT_SA="kafka-client@$PROJECT_ID.iam.gserviceaccount.com"
+    
+    gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+      --member="serviceAccount:$KAFKA_CLIENT_SA" \
+      --role="roles/managedkafka.client"
+    ```
 
-export KAFKA_CLIENT_SA="kafka-client@$PROJECT_ID.iam.gserviceaccount.com"
+- Service account key를 생성합니다.
 
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member="serviceAccount:$KAFKA_CLIENT_SA" \
-  --role="roles/managedkafka.client"
-```
+    ```sh
+    gcloud iam service-accounts keys create kafka-client-key.json \
+      --iam-account="$KAFKA_CLIENT_SA"
+    ```
 
-Service account key를 생성합니다.
+- SASL password로 사용할 base64 문자열을 만듭니다.
 
-```sh
-gcloud iam service-accounts keys create kafka-client-key.json \
-  --iam-account="$KAFKA_CLIENT_SA"
-```
+    ```sh
+    base64 -w 0 < kafka-client-key.json > kafka-client-password.txt
+    ```
 
-SASL password로 사용할 base64 문자열을 만듭니다.
+- `.env`에는 다음 값을 입력합니다.
 
-```sh
-base64 -w 0 < kafka-client-key.json > kafka-client-password.txt
-```
+    ```sh
+    vi .env
+    ```
 
-`.env`에는 다음 값을 입력합니다.
+    | `.env` 변수             | 입력할 값                                              | 확인 방법                           |
+    | --------------------- | -------------------------------------------------- | ------------------------------- |
+    | `KAFKA_SASL_USERNAME` | `kafka-client@$PROJECT_ID.iam.gserviceaccount.com` | `echo "$KAFKA_CLIENT_SA"`       |
+    | `KAFKA_SASL_PASSWORD` | `kafka-client-password.txt`의 한 줄 값                 | `cat kafka-client-password.txt` |
 
-```text
-KAFKA_SASL_USERNAME=<kafka-client service account email>
-KAFKA_SASL_PASSWORD=<kafka-client-password.txt의 한 줄 값>
-```
-
-다음 값은 `.env.example`에 고정 기본값으로 포함되어 있으며, 별도 변경이 필요하지 않습니다.
-
-```text
-KAFKA_SECURITY_PROTOCOL=SASL_SSL
-KAFKA_SASL_MECHANISM=PLAIN
-```
-
-Service account key는 장기 secret입니다. `.env`, `kafka-client-key.json`, `kafka-client-password.txt`는 Git에 커밋하지 않습니다.
 
 ---
 
-## 11. Kafka topic 생성
+## 12. Kafka topic 생성
 
 Cluster가 `ACTIVE` 상태가 되면 `nginx-topic`을 생성합니다.
 
@@ -274,24 +284,23 @@ curl -X POST \
   "https://managedkafka.googleapis.com/v1/projects/$PROJECT_ID/locations/asia-northeast3/clusters/kafka-clu/topics?topicId=nginx-topic"
 ```
 
-Topic 생성 확인:
-
-```sh
-curl -s \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-  "https://managedkafka.googleapis.com/v1/projects/$PROJECT_ID/locations/asia-northeast3/clusters/kafka-clu/topics/nginx-topic"
-```
+- Topic 생성 확인
+    
+    ```sh
+    curl -s \
+      -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+      "https://managedkafka.googleapis.com/v1/projects/$PROJECT_ID/locations/asia-northeast3/clusters/kafka-clu/topics/nginx-topic"
+    ```
 
 Kafka Connect 내부 topic과 Debezium schema history topic은 cluster 정책에 따라 자동 생성되거나 수동 생성이 필요할 수 있습니다. Connector 등록 중 topic 생성 권한 또는 auto-create 관련 오류가 발생하면 connector log를 확인한 뒤 필요한 internal topic을 수동으로 생성합니다.
 
 ---
 
-## 12. Cloud Storage bucket, service account, HMAC key 생성
+## 13. Cloud Storage bucket, service account, HMAC key 생성
 
-Kafka Connect S3 Sink Connector가 Cloud Storage를 S3-compatible endpoint로 사용하도록 bucket과 HMAC key를 준비합니다.
 
 ```sh
-gcloud storage buckets create "gs://gcp-bucket" \
+gcloud storage buckets create "gs://$BUCKET_NAME" \
   --location=asia-northeast3 \
   --uniform-bucket-level-access
 
@@ -300,40 +309,44 @@ gcloud iam service-accounts create kafka-connect-gcs-sink \
 
 export GCS_SINK_SA="kafka-connect-gcs-sink@$PROJECT_ID.iam.gserviceaccount.com"
 
-gcloud storage buckets add-iam-policy-binding "gs://gcp-bucket" \
+gcloud storage buckets add-iam-policy-binding "gs://$BUCKET_NAME" \
   --member="serviceAccount:$GCS_SINK_SA" \
   --role="roles/storage.objectAdmin"
 
 gcloud storage hmac create "$GCS_SINK_SA"
 ```
 
-HMAC secret은 생성 시 한 번만 표시됩니다. 출력된 access ID와 secret을 `.env`의 `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`에 입력합니다.
+- *주의: HMAC secret은 생성 시 한 번만 표시됩니다.*
+- 출력된 `accessId`와 `secret`은 안전한 곳에 임시로 기록한 뒤, `15. .env 작성` 단계에서 수동으로 입력합니다.
+
+    | 출력 값 | 뒤의 `.env` 변수 |
+    | --- | --- |
+    | `metadata.accessId` | `OBJECT_STORAGE_ACCESS_KEY` |
+    | `secret` | `OBJECT_STORAGE_SECRET_KEY` |
+
+
 
 ---
 
-## 13. BigQuery dataset 생성
+## 14. BigQuery dataset 생성
 
 ```sh
 bq --location=asia-northeast3 mk --dataset "$PROJECT_ID:futureschole_logs"
 ```
 
-생성 확인:
+- 생성 확인
 
-```sh
-bq ls "$PROJECT_ID:"
-```
+    ```sh
+    bq ls "$PROJECT_ID:"
+    ```
 
 ---
 
-## 14. 프로젝트 clone과 `.env` 작성
+## 15. .env 작성
 
-아래 명령은 VM SSH 세션에서 실행합니다.
+아래 명령은 VM SSH 세션의 프로젝트 루트 디렉터리에서 실행합니다.
 
 ```sh
-git clone replace-with-repository-url
-cd event-log-pipeline
-
-cp .env.example .env
 vi .env
 ```
 
@@ -350,61 +363,113 @@ vi .env
 | `OBJECT_STORAGE_ACCESS_KEY` | Cloud Storage HMAC access ID                       |
 | `OBJECT_STORAGE_SECRET_KEY` | Cloud Storage HMAC secret                          |
 
-`.env`는 Git에 커밋하지 않습니다.
+- 각 값은 `Cloud Shell`에서 아래 명령으로 확인 가능합니다.
+
+    ```sh
+    # PROJECT_ID 확인
+    gcloud config get-value project
+    
+    # VM_EXTERNAL_IP 확인
+    gcloud compute instances describe futureschole-pipeline-vm \
+      --zone=asia-northeast3-a \
+      --format="value(networkInterfaces[0].accessConfigs[0].natIP)"
+    
+    # KAFKA_BOOTSTRAP_SERVERS 확인
+    gcloud managed-kafka clusters describe kafka-clu \
+      --location=asia-northeast3 \
+      --format="value(bootstrapAddress)"
+    
+    # KAFKA_SASL_USERNAME 확인
+    gcloud iam service-accounts describe kafka-client@$(gcloud config get-value project).iam.gserviceaccount.com \
+      --format="value(email)"
+    
+    # KAFKA_SASL_PASSWORD 생성
+    # kafka-client-key.json이 이미 있으면 아래 명령만 실행합니다.
+    base64 -w 0 < kafka-client-key.json > kafka-client-password.txt
+    
+    # kafka-client-key.json이 없으면 새 key를 생성한 뒤 password 파일을 만듭니다.
+    gcloud iam service-accounts keys create kafka-client-key.json \
+      --iam-account=kafka-client@$(gcloud config get-value project).iam.gserviceaccount.com
+    
+    base64 -w 0 < kafka-client-key.json > kafka-client-password.txt
+    
+    # KAFKA_SASL_PASSWORD로 입력할 값 확인
+    # 주의: secret 값이 터미널에 출력되므로 GitHub, README, 채팅에 노출하지 않습니다.
+    cat kafka-client-password.txt
+    
+    # MYSQL_DEBEZIUM_PASSWORD
+    # 기본값을 그대로 사용할 경우 .env에 아래 값으로 입력합니다.
+    # MYSQL_DEBEZIUM_PASSWORD=debezium1234
+    # 다른 값을 사용할 경우 .env와 MySQL Debezium user 설정 값이 같아야 합니다.
+    
+    # BUCKET_NAME 확인
+    echo futureschole-nginx-logs-$(gcloud config get-value project)
+    
+    # OBJECT_STORAGE_ACCESS_KEY 확인
+    # ACTIVE 상태의 accessId를 .env의 OBJECT_STORAGE_ACCESS_KEY에 입력합니다.
+    gcloud storage hmac list \
+      --service-account=kafka-connect-gcs-sink@$(gcloud config get-value project).iam.gserviceaccount.com \
+      --format="table(accessId,state,serviceAccountEmail)"
+    
+    # OBJECT_STORAGE_SECRET_KEY 확인
+    # HMAC secret은 생성 시 한 번만 표시되며, 나중에 다시 조회할 수 없습니다.
+    # 기존 secret을 잃어버렸거나 노출했다면 새 HMAC key를 생성합니다.
+    gcloud storage hmac create kafka-connect-gcs-sink@$(gcloud config get-value project).iam.gserviceaccount.com
+    
+    # 위 명령 출력에서 아래 값을 .env에 입력합니다.
+    # metadata.accessId -> OBJECT_STORAGE_ACCESS_KEY
+    # secret            -> OBJECT_STORAGE_SECRET_KEY
+    
+    # secret 항목이 .env에 입력됐는지 개수만 확인합니다. 값은 출력하지 않습니다.
+    grep -E '^KAFKA_SASL_PASSWORD=|^OBJECT_STORAGE_SECRET_KEY=' .env | wc -l
+    ```
 
 ---
 
-## 15. Compose 구조 검증
-
-`.env.example`은 placeholder 값으로 Compose 구조만 확인할 때 사용합니다.
-
-```sh
-docker compose --env-file .env.example config --services
-```
-
-실제 `.env`를 작성한 뒤에는 다음 명령으로 실제 환경변수 기준 구성을 확인합니다.
+## 16. Compose 구조 검증
 
 ```sh
 docker compose config --services
 ```
 
-예상 service는 다음과 같습니다. 출력 순서는 다를 수 있습니다.
+- 출력 결과
 
-```text
-mysql
-api-server
-traffic-generator
-logstash
-filebeat
-kafka-connect
-connector-init
-```
+    ```text
+    mysql
+    api-server
+    traffic-generator
+    logstash
+    filebeat
+    kafka-connect
+    connector-init
+    ```
 
 ---
 
-## 16. 파이프라인 실행
+## 17. 파이프라인 실행
 
 ```sh
 docker compose up --build -d
 docker compose ps -a
 ```
 
-MySQL volume이 이전 설정으로 초기화되어 있거나 Debezium user/binlog 설정을 처음부터 다시 적용해야 할 경우 demo volume을 재생성합니다.
-
-```sh
-docker compose down -v --remove-orphans
-docker compose up --build -d
-```
-
-`docker compose down -v`는 MySQL data volume을 삭제합니다. 기존 test data를 유지해야 하는 경우 실행하지 않습니다.
-
 ---
 
-## 17. SQL 실행
+## 18. 저장 결과 분석 SQL 실행
+
+- *참고: 이 단계는 Docker Compose 실행 조건을 충족하기 위한 필수 단계가 아닙니다. `docker compose up --build -d` 이후 이벤트 생성, API 처리, MySQL 저장, Kafka 전송, Cloud Storage 적재는 **자동으로 동작**합니다.*
 
 Cloud Storage에 Nginx log와 MySQL CDC JSON이 쌓인 뒤 BigQuery SQL을 실행합니다.
+아래 SQL은 과제 Step 3의 집계 분석과 Step 5의 시각화를 위해 저장된 데이터를 BigQuery external table과 view로 연결하는 후속 분석 단계입니다.
 
-SQL 파일의 `PROJECT_ID` placeholder를 실제 값으로 교체한 뒤 실행합니다.
+SQL 파일의 `PROJECT_ID`, `BUCKET_NAME`, `BIGQUERY_DATASET` placeholder를 실제 값으로 교체한 뒤 실행합니다.
+
+
+| 파일                                  | 역할                                                   |
+| ----------------------------------- | ---------------------------------------------------- |
+| `sql/01_create_external_tables.sql` | Cloud Storage에 저장된 JSON을 BigQuery external table로 연결 |
+| `sql/02_create_views.sql`           | 분석용 정규화 view와 최종 집계 view 생성                          |
+| `sql/03_analysis_queries.sql`       | 최종 집계 결과 조회                                          |
 
 ```sh
 bq query --use_legacy_sql=false < sql/01_create_external_tables.sql
@@ -414,9 +479,9 @@ bq query --use_legacy_sql=false < sql/03_analysis_queries.sql
 
 ---
 
-## 18. 다음 단계
+## 19. 다음 단계
 
-실행 후 검증은 아래 문서를 따릅니다.
+- Docker Compose 실행 후 자동 저장 흐름이 정상인지 확인하려면 아래 문서를 따릅니다.
 
 ```text
 docs/validation.md
