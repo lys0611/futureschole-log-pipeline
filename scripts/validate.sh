@@ -50,17 +50,23 @@ for connector in nginx-s3-sink-connector mysql-source-connector mysql-cdc-s3-sin
   fi
 done
 
-if [ -f .env ]; then
-  BUCKET_NAME="$(grep -E '^BUCKET_NAME=' .env | tail -n 1 | cut -d= -f2- || true)"
-  S3_TOPICS_DIR="$(grep -E '^S3_TOPICS_DIR=' .env | tail -n 1 | cut -d= -f2- || true)"
-  PROJECT_ID="$(grep -E '^PROJECT_ID=' .env | tail -n 1 | cut -d= -f2- || true)"
-  BIGQUERY_DATASET="$(grep -E '^BIGQUERY_DATASET=' .env | tail -n 1 | cut -d= -f2- || true)"
-else
-  BUCKET_NAME=""
-  S3_TOPICS_DIR=""
-  PROJECT_ID=""
-  BIGQUERY_DATASET=""
-fi
+read_env_value() {
+  local name="$1"
+
+  if [ -n "${!name:-}" ]; then
+    printf '%s' "${!name}"
+    return
+  fi
+
+  if [ -f .env ]; then
+    grep -E "^${name}=" .env | tail -n 1 | cut -d= -f2- || true
+  fi
+}
+
+BUCKET_NAME="$(read_env_value BUCKET_NAME)"
+S3_TOPICS_DIR="raw"
+PROJECT_ID="$(read_env_value PROJECT_ID)"
+BIGQUERY_DATASET="futureschole_logs"
 
 if command -v gcloud >/dev/null 2>&1 && [ -n "$BUCKET_NAME" ] && [ -n "$S3_TOPICS_DIR" ]; then
   echo "== Cloud Storage prefixes =="

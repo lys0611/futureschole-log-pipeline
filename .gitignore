@@ -16,9 +16,12 @@ __pycache__/
 client.properties
 *.pem
 *.key
+*key*.json
 *.p12
+*password*.txt
 *credentials*.json
 *service-account*.json
+*secret*.json
 *hmac*.txt
 
 bq_seed/

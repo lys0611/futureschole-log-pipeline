@@ -1,6 +1,6 @@
--- 실행 전에 PROJECT_ID와 BIGQUERY_DATASET을 실제 값으로 교체합니다.
+-- 실행 전에 PROJECT_ID를 실제 값으로 교체합니다.
 
-CREATE OR REPLACE VIEW `PROJECT_ID.BIGQUERY_DATASET.nginx_logs_view` AS
+CREATE OR REPLACE VIEW `PROJECT_ID.futureschole_logs.nginx_logs_view` AS
 SELECT
   COALESCE(
     SAFE.PARSE_TIMESTAMP('%Y-%m-%d %H:%M:%S', timestamp),
@@ -20,9 +20,9 @@ SELECT
   query_params,
   CAST(product_id AS STRING) AS product_id,
   host
-FROM `PROJECT_ID.BIGQUERY_DATASET.nginx_logs_ext`;
+FROM `PROJECT_ID.futureschole_logs.nginx_logs_ext`;
 
-CREATE OR REPLACE VIEW `PROJECT_ID.BIGQUERY_DATASET.orders_view` AS
+CREATE OR REPLACE VIEW `PROJECT_ID.futureschole_logs.orders_view` AS
 SELECT
   order_id,
   user_id,
@@ -35,10 +35,10 @@ SELECT
   __op,
   __table,
   __deleted
-FROM `PROJECT_ID.BIGQUERY_DATASET.orders_cdc_ext`
+FROM `PROJECT_ID.futureschole_logs.orders_cdc_ext`
 WHERE COALESCE(__deleted, 'false') != 'true';
 
-CREATE OR REPLACE VIEW `PROJECT_ID.BIGQUERY_DATASET.cart_logs_view` AS
+CREATE OR REPLACE VIEW `PROJECT_ID.futureschole_logs.cart_logs_view` AS
 SELECT
   log_id,
   cart_id,
@@ -57,10 +57,10 @@ SELECT
   __op,
   __table,
   __deleted
-FROM `PROJECT_ID.BIGQUERY_DATASET.cart_logs_cdc_ext`
+FROM `PROJECT_ID.futureschole_logs.cart_logs_cdc_ext`
 WHERE COALESCE(__deleted, 'false') != 'true';
 
-CREATE OR REPLACE VIEW `PROJECT_ID.BIGQUERY_DATASET.vw_endpoint_error_rate` AS
+CREATE OR REPLACE VIEW `PROJECT_ID.futureschole_logs.vw_endpoint_error_rate` AS
 SELECT
   endpoint,
   COUNT(*) AS total_requests,
@@ -69,11 +69,11 @@ SELECT
   ROUND(100 * SAFE_DIVIDE(COUNTIF(status >= 400), COUNT(*)), 2) AS error_rate_pct,
   ROUND(100 * SAFE_DIVIDE(COUNTIF(status >= 500), COUNT(*)), 2) AS server_error_rate_pct,
   AVG(request_time) AS avg_request_time
-FROM `PROJECT_ID.BIGQUERY_DATASET.nginx_logs_view`
+FROM `PROJECT_ID.futureschole_logs.nginx_logs_view`
 WHERE endpoint IS NOT NULL
 GROUP BY endpoint;
 
-CREATE OR REPLACE VIEW `PROJECT_ID.BIGQUERY_DATASET.vw_cart_event_summary` AS
+CREATE OR REPLACE VIEW `PROJECT_ID.futureschole_logs.vw_cart_event_summary` AS
 WITH normalized AS (
   SELECT
     COALESCE(event_type, 'UNKNOWN') AS cart_event_type,
@@ -88,7 +88,7 @@ WITH normalized AS (
       )
       ELSE 0
     END AS added_quantity
-  FROM `PROJECT_ID.BIGQUERY_DATASET.cart_logs_view`
+  FROM `PROJECT_ID.futureschole_logs.cart_logs_view`
 )
 SELECT
   cart_event_type,
@@ -100,13 +100,13 @@ SELECT
 FROM normalized
 GROUP BY cart_event_type;
 
-CREATE OR REPLACE VIEW `PROJECT_ID.BIGQUERY_DATASET.vw_product_interest_cart_summary` AS
+CREATE OR REPLACE VIEW `PROJECT_ID.futureschole_logs.vw_product_interest_cart_summary` AS
 WITH product_views AS (
   SELECT
     CONCAT('product_', CAST(product_id AS STRING)) AS product_label,
     COUNT(*) AS page_view_count,
     COUNT(DISTINCT NULLIF(session_id, '')) AS view_sessions
-  FROM `PROJECT_ID.BIGQUERY_DATASET.nginx_logs_view`
+  FROM `PROJECT_ID.futureschole_logs.nginx_logs_view`
   WHERE endpoint = '/product'
     AND status < 400
     AND product_id IS NOT NULL
@@ -118,7 +118,7 @@ cart_adds AS (
     CONCAT('product_', CAST(product_id AS STRING)) AS product_label,
     COUNT(*) AS cart_add_events,
     COUNT(DISTINCT NULLIF(session_id, '')) AS cart_add_sessions
-  FROM `PROJECT_ID.BIGQUERY_DATASET.cart_logs_view`
+  FROM `PROJECT_ID.futureschole_logs.cart_logs_view`
   WHERE event_type = 'ADDED'
     AND product_id IS NOT NULL
     AND product_id != ''
