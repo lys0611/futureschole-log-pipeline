@@ -3,7 +3,7 @@ set -eu
 
 CONNECT_URL="${CONNECT_URL:-http://kafka-connect:8083}"
 CONNECTOR_NAME="nginx-s3-sink-connector"
-CONNECTOR_CONFIG="/connectors/${CONNECTOR_NAME}.json"
+CONNECTOR_CONFIG="/connectors/nginx-s3-sink.json"
 
 for _ in $(seq 1 60); do
   if curl -fsS "${CONNECT_URL}/connectors" >/dev/null; then

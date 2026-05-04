@@ -13,7 +13,7 @@
   "key.converter": "org.apache.kafka.connect.storage.StringConverter",
   "value.converter": "org.apache.kafka.connect.json.JsonConverter",
   "value.converter.schemas.enable": "false",
-  "flush.size": "100",
+  "flush.size": "1",
   "topics.dir": "raw-nginx-logs",
   "behavior.on.null.values": "ignore"
 }
